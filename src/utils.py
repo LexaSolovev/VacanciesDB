@@ -135,27 +135,27 @@ def load_areas_from_json():
     connection = psycopg2.connect(**params)
     connection.autocommit = True
     cursor = connection.cursor()
-    query = ""
 
-    def add_area_to_table(query: str, data: dict) -> str:
+    def add_area_to_table(data: dict) -> None:
+        """Вспомогательная рекурсивная функция для обработки и добавления записей из древовидной структуры"""
         area_id = data['id']
         parent_id = data['parent_id'] if data['parent_id'] else 'null'
         name = data['name']
-        query += (f"INSERT INTO areas(area_id, parent_id, name) "
+        query = (f"INSERT INTO areas(area_id, parent_id, name) "
                   f"VALUES ({area_id}, {parent_id}, '{name}'); ")
         cursor.execute(query)
-        query = ""
         for area in data['areas']:
-            add_area_to_table(query, area)
+            add_area_to_table(area)
 
     for area in areas_data:
-        add_area_to_table(query, area)
+        add_area_to_table(area)
 
 
 def user_interaction() -> None:
     """
     Функция для взаимодействия с пользователем
     """
+    #Создание БД, таблиц и загрузка справочных данных из area.json
     create_database()
     create_all_tables()
     load_areas_from_json()
