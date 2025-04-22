@@ -1,7 +1,10 @@
+import json
 import os
 
 import psycopg2
 from dotenv import load_dotenv
+
+from config import PATH_AREAS
 
 #Загрузка переменных из .env файла
 load_dotenv()
@@ -79,20 +82,8 @@ def create_all_tables():
             #Создаем таблицу регионов
             query = ("CREATE TABLE areas("
                      "area_id INT PRIMARY KEY,"
-                     "parent_id INT NOT NULL,"
+                     "parent_id INT,"
                      "name VARCHAR(250) NOT NULL)")
-            cursor.execute(query)
-
-        except psycopg2.ProgrammingError as e:
-            print(f"Ошибка при выполнении запроса: {query}")
-            print(e)
-
-        try:
-            #Добавляем внешний ключ для parent_id
-            query = ("ALTER TABLE areas "
-                     "ADD CONSTRAINT FK_ParentArea "
-                     "FOREIGN KEY(parent_id) REFERENCES "
-                     "areas(area_id)")
             cursor.execute(query)
 
         except psycopg2.ProgrammingError as e:
@@ -137,6 +128,29 @@ def create_all_tables():
             return
 
 
+def load_areas_from_json():
+    with open(PATH_AREAS) as f:
+        areas_data = json.load(f)
+    params = get_params_for_connect_db()
+    connection = psycopg2.connect(**params)
+    connection.autocommit = True
+    cursor = connection.cursor()
+    query = ""
+
+    def add_area_to_table(query: str, data: dict) -> str:
+        area_id = data['id']
+        parent_id = data['parent_id'] if data['parent_id'] else 'null'
+        name = data['name']
+        query += (f"INSERT INTO areas(area_id, parent_id, name) "
+                  f"VALUES ({area_id}, {parent_id}, '{name}'); ")
+        cursor.execute(query)
+        query = ""
+        for area in data['areas']:
+            add_area_to_table(query, area)
+
+    for area in areas_data:
+        add_area_to_table(query, area)
+
 
 def user_interaction() -> None:
     """
@@ -144,3 +158,4 @@ def user_interaction() -> None:
     """
     create_database()
     create_all_tables()
+    load_areas_from_json()
