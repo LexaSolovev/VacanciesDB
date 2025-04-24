@@ -4,7 +4,8 @@ import os
 import psycopg2
 from dotenv import load_dotenv
 
-from config import PATH_AREAS
+from config import PATH_AREAS, PATH_EMPLOYERS
+from src.api import get_employer_data
 
 #Загрузка переменных из .env файла
 load_dotenv()
@@ -96,7 +97,7 @@ def create_all_tables():
                      "employer_id SERIAL PRIMARY KEY,"
                      "name VARCHAR(250) NOT NULL,"
                      "url VARCHAR(500) NOT NULL,"
-                     "hh_id INT NOT NULL,"
+                     "hh_id INT NOT NULL UNIQUE,"
                      "area_id INT NOT NULL, "
                      "FOREIGN KEY (area_id) REFERENCES areas(area_id))")
             cursor.execute(query)
@@ -134,21 +135,45 @@ def load_areas_from_json():
     params = get_params_for_connect_db()
     connection = psycopg2.connect(**params)
     connection.autocommit = True
-    cursor = connection.cursor()
+    with connection.cursor() as cursor:
+        cursor.execute("TRUNCATE TABLE areas CASCADE")
+        def add_area_to_table(data: dict) -> None:
+            """Вспомогательная рекурсивная функция для обработки и добавления записей из древовидной структуры"""
+            area_id = data['id']
+            parent_id = data['parent_id'] if data['parent_id'] else 'null'
+            name = data['name']
+            query = (f"INSERT INTO areas(area_id, parent_id, name) "
+                      f"VALUES ({area_id}, {parent_id}, '{name}'); ")
+            cursor.execute(query)
+            for area in data['areas']:
+                add_area_to_table(area)
 
-    def add_area_to_table(data: dict) -> None:
-        """Вспомогательная рекурсивная функция для обработки и добавления записей из древовидной структуры"""
-        area_id = data['id']
-        parent_id = data['parent_id'] if data['parent_id'] else 'null'
-        name = data['name']
-        query = (f"INSERT INTO areas(area_id, parent_id, name) "
-                  f"VALUES ({area_id}, {parent_id}, '{name}'); ")
-        cursor.execute(query)
-        for area in data['areas']:
+        for area in areas_data:
             add_area_to_table(area)
 
-    for area in areas_data:
-        add_area_to_table(area)
+
+def load_employers_to_db() -> None:
+    """Записывает данные по списку работодателей в таблицу employers"""
+    with open(PATH_EMPLOYERS) as f:
+        emp_list = json.load(f)["emp_hh_id"]
+    params = get_params_for_connect_db()
+    connection = psycopg2.connect(**params)
+    connection.autocommit = True
+    with connection.cursor() as cursor:
+        for emp_id in emp_list:
+            emp_data = get_employer_data(emp_id)
+            query = (f"INSERT INTO employers(name, url, hh_id, area_id) VALUES("
+                     f"'{emp_data['name']}',"
+                     f"'{emp_data['url']}',"
+                     f"{emp_data['hh_id']},"
+                     f"{emp_data['area_id']})")
+            cursor.execute(query)
+
+
+
+
+
+
 
 
 def user_interaction() -> None:
@@ -159,3 +184,4 @@ def user_interaction() -> None:
     create_database()
     create_all_tables()
     load_areas_from_json()
+    load_employers_to_db()
