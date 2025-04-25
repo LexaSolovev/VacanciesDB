@@ -198,15 +198,10 @@ def load_vacancies_to_db() -> None:
                     vacancy['snippet'].get('requirement', 'null')
                 )
                 query = ("INSERT INTO vacancies VALUES(%s,%s,%s,%s,%s,%s,%s,%s)"
-                         "ON CONFLICT (vacancy_id) DO UPDATE "
-                         "SET "
-                         "    name = EXCLUDED.name,"
-                         "    url = EXCLUDED.url,"
-                         "    employer_id = EXCLUDED.employer_id,"
-                         "    salary_from = EXCLUDED.salary_from,"
-                         "    salary_to = EXCLUDED.salary_to,"
-                         "    currency = EXCLUDED.currency,"
-                         "    description = EXCLUDED.description")
+                         "ON CONFLICT (vacancy_id) DO NOTHING")
+
+                # При конфликте по vacancy_id новая запись не добавляется.
+
                 cursor.execute(query, insert_data)
 
     connection.close()
