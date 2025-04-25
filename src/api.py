@@ -20,14 +20,25 @@ def get_employer_data(emp_hh_id: int) -> dict:
             "area_id": content["area"]["id"]
         }
     else:
-        requests.RequestException("Неверный ответ!")
+        requests.RequestException(f"Неверный ответ! Статус-код = {response.status_code}")
 
 
 def get_vacancies_by_employer(emp_hh_id: int) -> list[dict]:
-    pass
+    """Функция получает список вакансий по id работодателя с сайта hh.ru"""
+    response = requests.get(
+        "https://api.hh.ru/vacancies",
+        params={'emploer_id': emp_hh_id},
+        headers={'User-Agent': 'HH-User-Agent'}
+    )
+    if response.status_code == 200:
+        content = json.loads(response.content)
+        vacancies = content['items']
+        return vacancies
+    else:
+        requests.RequestException(f"Неверный ответ! Статус-код = {response.status_code}")
 
 if __name__ == "__main__":
-    with open(PATH_EMPLOYERS) as f:
-        emp_list = json.load(f)["emp_hh_id"]
-    for emp_id in emp_list:
-        print(get_employer_data(emp_id))
+    # with open(PATH_EMPLOYERS) as f:
+    #     emp_list = json.load(f)["emp_hh_id"]
+    # for emp_id in emp_list:
+    #     print(get_employer_data(emp_id))
