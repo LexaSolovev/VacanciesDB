@@ -5,7 +5,7 @@ import psycopg2
 from dotenv import load_dotenv
 
 from config import PATH_AREAS, PATH_EMPLOYERS
-from src.api import get_employer_data
+from src.api import get_employer_data, get_vacancies_by_employer
 
 #Загрузка переменных из .env файла
 load_dotenv()
@@ -53,9 +53,12 @@ def create_database() -> None:
 
         # Создание новой базы данных
         with connection.cursor() as cursor:
-            cursor.execute(f"CREATE DATABASE {dbname}")
+            cursor.execute(f"SELECT datname from pg_database WHERE datname = '{dbname}'")
+            if not cursor.fetchall():
+                cursor.execute(f"CREATE DATABASE {dbname}")
+                print(f"База данных {dbname} успешно создана.")
 
-        print(f"База данных {dbname} успешно создана.")
+
 
     except psycopg2.OperationalError as e:
         print(f"Ошибка подключения к серверу PostgreSQL: {e}")
@@ -81,7 +84,7 @@ def create_all_tables():
     with (connection.cursor() as cursor):
         try:
             #Создаем таблицу регионов
-            query = ("CREATE TABLE areas("
+            query = ("CREATE TABLE IF NOT EXISTS areas("
                      "area_id INT PRIMARY KEY,"
                      "parent_id INT,"
                      "name VARCHAR(250) NOT NULL)")
@@ -93,11 +96,10 @@ def create_all_tables():
 
         try:
             #Создаем таблицу работодателей
-            query = ("CREATE TABLE employers("
-                     "employer_id SERIAL PRIMARY KEY,"
+            query = ("CREATE TABLE IF NOT EXISTS employers("
+                     "employer_id INT PRIMARY KEY,"
                      "name VARCHAR(250) NOT NULL,"
                      "url VARCHAR(500) NOT NULL,"
-                     "hh_id INT NOT NULL UNIQUE,"
                      "area_id INT NOT NULL, "
                      "FOREIGN KEY (area_id) REFERENCES areas(area_id))")
             cursor.execute(query)
@@ -108,15 +110,14 @@ def create_all_tables():
 
         try:
             #Создаем таблицу вакансий
-            query = ("CREATE TABLE vacancies("
-                     "vacancy_id SERIAL PRIMARY KEY,"
-                     "name VARCHAR(250) NOT NULL,"
+            query = ("CREATE TABLE IF NOT EXISTS vacancies("
+                     "vacancy_id INT PRIMARY KEY,"
+                     "name VARCHAR(500) NOT NULL,"
                      "url VARCHAR(500) NOT NULL,"
-                     "hh_id INT NOT NULL,"
                      "employer_id INT,"
-                     "salary_from INT NOT NULL," 
-                     "salary_to INT NOT NULL,"
-                     "currency VARCHAR(5) NOT NULL,"
+                     "salary_from INT NOT NULL DEFAULT 0," 
+                     "salary_to INT NOT NULL DEFAULT 0,"
+                     "currency VARCHAR(5) NOT NULL DEFAULT 'RUR',"
                      "description TEXT,"
                      "FOREIGN KEY (employer_id) REFERENCES employers(employer_id))")
             cursor.execute(query)
@@ -150,6 +151,7 @@ def load_areas_from_json():
 
         for area in areas_data:
             add_area_to_table(area)
+    connection.close()
 
 
 def load_employers_to_db() -> None:
@@ -162,13 +164,64 @@ def load_employers_to_db() -> None:
     with connection.cursor() as cursor:
         for emp_id in emp_list:
             emp_data = get_employer_data(emp_id)
-            query = (f"INSERT INTO employers(name, url, hh_id, area_id) VALUES("
+            query = (f"INSERT INTO employers(employer_id, name, url, area_id) VALUES("
+                     f"{emp_data['employer_id']},"
                      f"'{emp_data['name']}',"
                      f"'{emp_data['url']}',"
-                     f"{emp_data['hh_id']},"
                      f"{emp_data['area_id']})")
             cursor.execute(query)
 
+
+def load_vacancies_to_db() -> None:
+    params = get_params_for_connect_db()
+    connection = psycopg2.connect(**params)
+    connection.autocommit = True
+    with connection.cursor() as cursor:
+        query = "SELECT employer_id FROM employers"
+        cursor.execute(query)
+        query_result = cursor.fetchall()
+        emp_list = [row[0] for row in query_result] # Получаем список employers_id
+
+        for emp_id in emp_list:
+            vacancies_data = get_vacancies_by_employer(emp_id)
+
+            for vacancy in vacancies_data:
+                salary_from, salary_to, currency = validate_salary(vacancy['salary'])
+                insert_data = (
+                    vacancy['id'],
+                    vacancy['name'],
+                    vacancy['alternate_url'],
+                    emp_id,
+                    salary_from,
+                    salary_to,
+                    currency,
+                    vacancy['snippet'].get('requirement', 'null')
+                )
+                query = ("INSERT INTO vacancies VALUES(%s,%s,%s,%s,%s,%s,%s,%s)"
+                         "ON CONFLICT (vacancy_id) DO UPDATE "
+                         "SET "
+                         "    name = EXCLUDED.name,"
+                         "    url = EXCLUDED.url,"
+                         "    employer_id = EXCLUDED.employer_id,"
+                         "    salary_from = EXCLUDED.salary_from,"
+                         "    salary_to = EXCLUDED.salary_to,"
+                         "    currency = EXCLUDED.currency,"
+                         "    description = EXCLUDED.description")
+                cursor.execute(query, insert_data)
+
+    connection.close()
+
+
+def validate_salary(salary_info: dict | None) -> tuple:
+    """ Метод для валидации информации о зарплате, возвращает картеж (salary_from, salary_to, currency) """
+    salary_from = 0
+    salary_to = 0
+    currency = "RUR"
+    if salary_info:
+        salary_from = salary_info["from"] if salary_info["from"] else 0
+        salary_to = salary_info["to"] if salary_info["to"] else 0
+        currency = salary_info["currency"] if salary_info["currency"] else "RUR"
+    return salary_from, salary_to, currency
 
 
 
@@ -180,8 +233,12 @@ def user_interaction() -> None:
     """
     Функция для взаимодействия с пользователем
     """
-    #Создание БД, таблиц и загрузка справочных данных из area.json
+    # Создание БД и таблиц
     create_database()
     create_all_tables()
+    # Загрузка регионов, данных о работодателях и вакансиях в БД
     load_areas_from_json()
     load_employers_to_db()
+    load_vacancies_to_db()
+
+
