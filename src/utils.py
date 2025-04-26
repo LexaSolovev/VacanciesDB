@@ -143,9 +143,10 @@ def load_areas_from_json():
             area_id = data['id']
             parent_id = data['parent_id'] if data['parent_id'] else 'null'
             name = data['name']
-            query = (f"INSERT INTO areas(area_id, parent_id, name) "
-                      f"VALUES ({area_id}, {parent_id}, '{name}'); ")
-            cursor.execute(query)
+            insert_data = (area_id, parent_id, name)
+            query = ("INSERT INTO areas(area_id, parent_id, name) "
+                      "VALUES (%s, %s, %s)")
+            cursor.execute(query, insert_data)
             for area in data['areas']:
                 add_area_to_table(area)
 
@@ -164,12 +165,9 @@ def load_employers_to_db() -> None:
     with connection.cursor() as cursor:
         for emp_id in emp_list:
             emp_data = get_employer_data(emp_id)
-            query = (f"INSERT INTO employers(employer_id, name, url, area_id) VALUES("
-                     f"{emp_data['employer_id']},"
-                     f"'{emp_data['name']}',"
-                     f"'{emp_data['url']}',"
-                     f"{emp_data['area_id']})")
-            cursor.execute(query)
+            insert_data = (emp_data['employer_id'], emp_data['name'], emp_data['url'], emp_data['area_id'])
+            query = "INSERT INTO employers(employer_id, name, url, area_id) VALUES(%s,%s,%s,%s)"
+            cursor.execute(query, insert_data)
 
 
 def load_vacancies_to_db() -> None:
@@ -231,7 +229,8 @@ def user_interaction() -> None:
     # Создание БД и таблиц
     create_database()
     create_all_tables()
-    # Загрузка регионов, данных о работодателях и вакансиях в БД
+
+    # Загрузка данных о регионах, работодателях и вакансиях в БД
     load_areas_from_json()
     load_employers_to_db()
     load_vacancies_to_db()
