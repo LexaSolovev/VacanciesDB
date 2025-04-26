@@ -1,7 +1,5 @@
 import psycopg2
 
-from src.utils import get_params_for_connect_db
-
 
 class DBManager:
 
@@ -54,7 +52,7 @@ class DBManager:
 
     def get_vacancies_with_keyword(self, keyword: str):
         cursor = self.__cursor
-        query = ("select * from vacancies v "
+        query = ("select v.vacancy_id, v.name, v.salary_from, v.salary_to, v.url from vacancies v "
                  "where "
                  "v.name "
                  "ilike "
@@ -80,6 +78,8 @@ class DBManager:
         # Выводим результаты запроса
         for row in cursor.fetchall():
             print(' '.join(f'{value:{width}}' for value, width in zip(row, column_widths)))
+        # Итоговый разделитель
+        print('-' * (sum(column_widths) + len(column_widths)))
 
 
 # if __name__ == "__main__":
