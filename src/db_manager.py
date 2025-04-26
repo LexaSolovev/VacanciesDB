@@ -64,6 +64,11 @@ class DBManager:
         # Получаем имена столбцов
         column_names = [desc[0] for desc in cursor.description]
 
+        # Если запрос пустой
+        if not cursor.rowcount:
+            print("По вашему запросу ничего не найдено.")
+            return
+
         # Определяем максимальную ширину столбцов
         column_widths = [max(len(str(value)) for value in row) for row in zip(*cursor.fetchall())]
         column_widths = [max(len(name), width) for name, width in zip(column_names, column_widths)]
