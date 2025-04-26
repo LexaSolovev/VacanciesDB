@@ -8,9 +8,6 @@ from config import PATH_AREAS, PATH_EMPLOYERS, config
 from src.api import get_employer_data, get_vacancies_by_employer
 from src.db_manager import DBManager
 
-#Загрузка переменных из .env файла
-load_dotenv()
-
 
 def get_params_for_connect_db() -> dict:
     """
@@ -22,6 +19,8 @@ def get_params_for_connect_db() -> dict:
     if params:
         return params
 
+    # Загрузка переменных из .env файла
+    load_dotenv()
     return {
         'dbname': os.getenv("DB_NAME"),
         'user': os.getenv("DB_USER"),
