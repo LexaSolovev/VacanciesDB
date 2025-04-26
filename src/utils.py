@@ -57,8 +57,21 @@ def create_database() -> None:
             if not cursor.fetchall():
                 cursor.execute(f"CREATE DATABASE {dbname}")
                 print(f"База данных {dbname} успешно создана.")
-
-
+            else:
+                while True:
+                    print(f"База данных {dbname} найдена. Вы хотите использовать ее? (y/n): ")
+                    user_input = input()
+                    if user_input == 'y':
+                        return
+                    elif user_input == 'n':
+                        print("База данных будет создана заново.")
+                        cursor.execute(
+                            f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{dbname}'")
+                        cursor.execute(f"DROP DATABASE {dbname}")
+                        cursor.execute(f"CREATE DATABASE {dbname}")
+                        return
+                    else:
+                        print("Некорректный ввод.")
 
     except psycopg2.OperationalError as e:
         print(f"Ошибка подключения к серверу PostgreSQL: {e}")
@@ -141,7 +154,7 @@ def load_areas_from_json():
         def add_area_to_table(data: dict) -> None:
             """Вспомогательная рекурсивная функция для обработки и добавления записей из древовидной структуры"""
             area_id = data['id']
-            parent_id = data['parent_id'] if data['parent_id'] else 'null'
+            parent_id = data['parent_id'] if data['parent_id'] else None
             name = data['name']
             insert_data = (area_id, parent_id, name)
             query = ("INSERT INTO areas(area_id, parent_id, name) "
@@ -168,6 +181,7 @@ def load_employers_to_db() -> None:
             insert_data = (emp_data['employer_id'], emp_data['name'], emp_data['url'], emp_data['area_id'])
             query = "INSERT INTO employers(employer_id, name, url, area_id) VALUES(%s,%s,%s,%s)"
             cursor.execute(query, insert_data)
+    connection.close()
 
 
 def load_vacancies_to_db() -> None:
@@ -215,11 +229,6 @@ def validate_salary(salary_info: dict | None) -> tuple:
         salary_to = salary_info["to"] if salary_info["to"] else 0
         currency = salary_info["currency"] if salary_info["currency"] else "RUR"
     return salary_from, salary_to, currency
-
-
-
-
-
 
 
 def user_interaction() -> None:
