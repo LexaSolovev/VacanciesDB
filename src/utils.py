@@ -4,7 +4,7 @@ import os
 import psycopg2
 from dotenv import load_dotenv
 
-from config import PATH_AREAS, PATH_EMPLOYERS
+from config import PATH_AREAS, PATH_EMPLOYERS, config
 from src.api import get_employer_data, get_vacancies_by_employer
 from src.db_manager import DBManager
 
@@ -14,9 +14,14 @@ load_dotenv()
 
 def get_params_for_connect_db() -> dict:
     """
-    Функция для получения параметров для подключения к базе данных из .env файла
-    :return: возвращает словарь с параметрами для подключения к БД: 'db_name', 'user', 'password', 'host', 'port'
+    Функция для получения параметров для подключения к базе данных.
+    Если есть файл database.ini, то параметры берутся оттуда, если нет, то из .env файла
+    :return: возвращает словарь с параметрами для подключения к БД: 'dbname', 'user', 'password', 'host', 'port'
     """
+    params = config()
+    if params:
+        return params
+
     return {
         'dbname': os.getenv("DB_NAME"),
         'user': os.getenv("DB_USER"),
