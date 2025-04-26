@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 from config import PATH_AREAS, PATH_EMPLOYERS
 from src.api import get_employer_data, get_vacancies_by_employer
+from src.db_manager import DBManager
 
 #Загрузка переменных из .env файла
 load_dotenv()
@@ -94,6 +95,7 @@ def create_all_tables():
     except Exception as e:
         print(f"Ошибка при попытке подключения к серверу PostgreSQL: {e}")
         return
+    print("Создаем таблицы...")
     with (connection.cursor() as cursor):
         try:
             #Создаем таблицу регионов
@@ -102,6 +104,7 @@ def create_all_tables():
                      "parent_id INT,"
                      "name VARCHAR(250) NOT NULL)")
             cursor.execute(query)
+            print("Таблица регионов создана успешно.")
 
         except psycopg2.ProgrammingError as e:
             print(f"Ошибка при выполнении запроса: {query}")
@@ -116,6 +119,7 @@ def create_all_tables():
                      "area_id INT NOT NULL, "
                      "FOREIGN KEY (area_id) REFERENCES areas(area_id))")
             cursor.execute(query)
+            print("Таблица работодателей создана успешно.")
 
         except psycopg2.ProgrammingError as e:
             print(f"Ошибка при выполнении запроса: {query}")
@@ -134,13 +138,13 @@ def create_all_tables():
                      "description TEXT,"
                      "FOREIGN KEY (employer_id) REFERENCES employers(employer_id))")
             cursor.execute(query)
+            print("Таблица вакансий создана успешно.")
 
         except psycopg2.ProgrammingError as e:
             print(f"Ошибка при выполнении запроса: {query}")
             print(e)
         finally:
             connection.close()
-            return
 
 
 def load_areas_from_json():
@@ -150,6 +154,7 @@ def load_areas_from_json():
     connection = psycopg2.connect(**params)
     connection.autocommit = True
     with connection.cursor() as cursor:
+        print("Загрузка данных по регионам...")
         cursor.execute("TRUNCATE TABLE areas CASCADE")
         def add_area_to_table(data: dict) -> None:
             """Вспомогательная рекурсивная функция для обработки и добавления записей из древовидной структуры"""
@@ -165,11 +170,13 @@ def load_areas_from_json():
 
         for area in areas_data:
             add_area_to_table(area)
+    print("Данные по регионам успешно загружены.")
     connection.close()
 
 
 def load_employers_to_db() -> None:
     """Записывает данные по списку работодателей в таблицу employers"""
+    print("Загрузка данных по работодателям...")
     with open(PATH_EMPLOYERS) as f:
         emp_list = json.load(f)["emp_hh_id"]
     params = get_params_for_connect_db()
@@ -181,13 +188,16 @@ def load_employers_to_db() -> None:
             insert_data = (emp_data['employer_id'], emp_data['name'], emp_data['url'], emp_data['area_id'])
             query = "INSERT INTO employers(employer_id, name, url, area_id) VALUES(%s,%s,%s,%s)"
             cursor.execute(query, insert_data)
+    print("Данные по работодателям успешно загружены.")
     connection.close()
 
 
 def load_vacancies_to_db() -> None:
+    """ Функция загружает данные по вакансиям в БД"""
     params = get_params_for_connect_db()
     connection = psycopg2.connect(**params)
     connection.autocommit = True
+    print("Загрузка данных по вакансиям...")
     with connection.cursor() as cursor:
         query = "SELECT employer_id FROM employers"
         cursor.execute(query)
@@ -215,7 +225,7 @@ def load_vacancies_to_db() -> None:
                 # При конфликте по vacancy_id новая запись не добавляется.
 
                 cursor.execute(query, insert_data)
-
+    print("Данные по вакансиям успешно загружены.")
     connection.close()
 
 
@@ -244,4 +254,36 @@ def user_interaction() -> None:
     load_employers_to_db()
     load_vacancies_to_db()
 
-
+    # Интерактив с пользователем
+    db_manager = DBManager(get_params_for_connect_db())
+    exit = False
+    while not exit:
+        print("Выберете дальнейшие действия:")
+        print("1. Получить список компаний и количество вакансий")
+        print("2. Получить список вакансий с указанием названия "
+              "компании, названия вакансии, зарплаты и ссылки на вакансию")
+        print("3. Получить среднюю зарплату по вакансиям")
+        print("4. Получить список всех вакансий, у которых зарплата выше средней по всем вакансиям")
+        print("5. Поиск вакансий по ключевым словам")
+        print("6. Выход")
+        user_input = input()
+        if user_input == '1':
+            query_result = db_manager.get_companies_and_vacancies_count()
+            db_manager.print_table(query_result)
+        elif user_input == '2':
+            query_result = db_manager.get_all_vacancies()
+            db_manager.print_table(query_result)
+        elif user_input == '3':
+            query_result = db_manager.get_avg_salary()
+            db_manager.print_table(query_result)
+        elif user_input == '4':
+            query_result = db_manager.get_vacancies_with_higher_salary()
+            db_manager.print_table(query_result)
+        elif user_input == '5':
+            keyword = input("Введите слово для поиска:")
+            query_result = db_manager.get_vacancies_with_keyword(keyword)
+            db_manager.print_table(query_result)
+        elif user_input == '6':
+            exit = True
+        else:
+            print("Неверный ввод!")
