@@ -7,8 +7,39 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
+python-dotenv = "^1.0.1"
+requests = "^2.32.3"
+psycopg2 = "^2.9.10"
 
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.lint.dependencies]
+flake8 = "^7.1.1"
+black = "^24.10.0"
+mypy = "^1.14.0"
+isort = "^5.13.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+pytest-cov = "^6.0.0"
+
+[tool.black]
+line-length = 119
+exclude = ".venv"
+
+[tool.isort]
+line_length = 119
+
+[tool.mypy]
+disallow_untyped_defs = true
+warn_return_any = true
+exclude = ".venv"
+
+[tool.coverage.report]
+exclude_also = [
+    'def main():',
+    'if __name__ == "__main__":'
+]
